@@ -28,15 +28,17 @@ def main():
             if k.find('image_') < 0 and k.find('mask_') < 0:
                 print k.ljust(max_len),'=', str(ed[k]).strip()
             elif k.find('image_') >= 0:
-                images.append(ed[k])
+                images.append(cxi_lib.ungzipImage(ed[k]))
 
     image_num = len(images)
 
     fig = plt.figure()
 
     for i in range(image_num):
+        img = images[i]
+        img[img<0] = 0
         a = fig.add_subplot(1,image_num,i+1)
-        plot = plt.imshow(cxi_lib.ungzipImage(images[i]), interpolation='nearest')
+        plot = plt.imshow(img, interpolation='nearest')
         a.set_title('Image %d'%(i+1))
         plt.colorbar()
 

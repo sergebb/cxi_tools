@@ -18,7 +18,7 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
 
     if x_pixel_size != x_pixel_size_bottom or y_pixel_size != y_pixel_size_bottom:
         if verbose: sys.stderr.write('Error: Panels with different pixel size\n')
-        return None, None
+        return None
 
     top_corner_pos = None
     bottom_corner_pos = None
@@ -27,7 +27,7 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
         bottom_corner_pos = bottom_half['corner_position'][()]
     else:
         if verbose: sys.stderr.write('Error: Unknown panel position\n')
-        return None, None
+        return None
 
     res_y,res_x = top_half_data.shape
     x = range(res_x)
@@ -49,21 +49,19 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
 
     if res_x >= 3000 or res_y >= 3000:
         # Wrong detector, skipping
-        return None,None
+        return None
 
     x_min = np.amin(x_coord)
     y_max = np.amax(y_coord)
 
-    image_data = np.zeros(res_x*res_y) #.reshape(res_y,res_x)
-    mask = np.ones(res_x*res_y)*-10000
+    image_data = np.ones(res_x*res_y)*-10000
 
     x_coord = np.round((x_coord - x_min)/x_pixel_size).astype(int)
     y_coord = np.round((y_max - y_coord)/y_pixel_size).astype(int)
 
     np.put(image_data, x_coord+res_x*y_coord, values)
-    np.put(mask, x_coord+res_x*y_coord, 0)
 
-    return image_data.reshape(res_y,res_x),mask.reshape(res_y,res_x)
+    return image_data.reshape(res_y,res_x)
 
 # Extract intensiry data and panel parameters.
 def readPanelData(data_panel):
@@ -136,20 +134,17 @@ def processEntry(entry, verbose = 0):
         panelsData.append(data_dict)
 
     converted_images = []
-    converted_mask = []
 
     if len(data_panels)%2 == 0:
-        sys.stderr.write('Entry contain data for pnCCD halves\n')
+        if verbose: sys.stderr.write('Entry contain data for pnCCD halves\n')
         for i in range(0,len(data_panels),2):
-            image_data, mask = combinePnCCDHalves(panelsData[i],panelsData[i+1],verbose)
+            image_data = combinePnCCDHalves(panelsData[i],panelsData[i+1],verbose)
             
             if image_data is not None:
                 converted_images.append(image_data)
-                converted_mask.append(mask)
 
     for i in range(len(converted_images)): # Save results of conversion into image_N and mask_N
         entry_data['image_%d'%(i+1)] = gzipImage(converted_images[i])
-        entry_data['mask_%d'%(i+1)] = gzipImage(converted_mask[i])
 
     return entry_data
 
