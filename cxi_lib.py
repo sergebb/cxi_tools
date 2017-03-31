@@ -12,8 +12,8 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
     bottom_half_data = bottom_half['data'][:]
 
     x_pixel_size = top_half['x_pixel_size'][()]
-    y_pixel_size = bottom_half['y_pixel_size'][()]
-    x_pixel_size_bottom = top_half['x_pixel_size'][()]
+    y_pixel_size = top_half['y_pixel_size'][()]
+    x_pixel_size_bottom = bottom_half['x_pixel_size'][()]
     y_pixel_size_bottom = bottom_half['y_pixel_size'][()]
 
     if x_pixel_size != x_pixel_size_bottom or y_pixel_size != y_pixel_size_bottom:
@@ -23,7 +23,7 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
     top_corner_pos = None
     bottom_corner_pos = None
     if 'corner_position' in top_half:
-        top_corner_pos = top_half['corner_position'][:]
+        top_corner_pos = top_half['corner_position'][()]
         bottom_corner_pos = bottom_half['corner_position'][()]
     else:
         if verbose: sys.stderr.write('Error: Unknown panel position\n')
@@ -34,15 +34,21 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
     y = range(res_y)
     xx, yy = np.meshgrid(x,y)
 
-    x_coord_top = xx*x_pixel_size + top_corner_pos[0]
-    y_coord_top = top_corner_pos[1] - yy*y_pixel_size
+    x_coord = np.zeros(res_x*res_y*2).reshape(res_y*2,res_x)
+    y_coord = np.zeros(res_x*res_y*2).reshape(res_y*2,res_x)
+    values = np.zeros(res_x*res_y*2).reshape(res_y*2,res_x)
 
-    x_coord_bottom = xx*x_pixel_size + bottom_corner_pos[0]
-    y_coord_bottom = bottom_corner_pos[1] - yy*y_pixel_size
+    x_coord[:res_y,:] = xx*x_pixel_size + top_corner_pos[0]
+    y_coord[:res_y,:] = top_corner_pos[1] - yy*y_pixel_size
+    values[:res_y,:] = top_half_data
 
-    x_coord = np.concatenate((x_coord_top.flatten(),x_coord_bottom.flatten()), axis=0)
-    y_coord = np.concatenate((y_coord_top.flatten(),y_coord_bottom.flatten()), axis=0) 
-    values = np.concatenate((top_half_data.flatten(),bottom_half_data.flatten()), axis=0)
+    x_coord[res_y:,:] = xx*x_pixel_size + bottom_corner_pos[0]
+    y_coord[res_y:,:] = bottom_corner_pos[1] - yy*y_pixel_size
+    values[res_y:,:] = bottom_half_data
+
+    x_coord = x_coord.ravel()
+    y_coord = y_coord.ravel()
+    values = values.ravel()
 
     res_x = int(math.ceil((np.amax(x_coord) - np.amin(x_coord))/x_pixel_size)) + 1
     res_y = int(math.ceil((np.amax(y_coord) - np.amin(y_coord))/y_pixel_size)) + 1
@@ -100,9 +106,9 @@ def extractDataFromGroup(group):
 
 
 def prepareDataset(dataset):
-    if len(dataset.flatten()) == 1:
+    if len(dataset.ravel()) == 1:
         return np.asscalar(dataset)
-    elif len(dataset.flatten()) < 10:
+    elif len(dataset.ravel()) < 10:
         return dataset
     else:
         return '%s of shape %s' %(type(dataset),str(dataset.shape))
