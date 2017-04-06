@@ -25,9 +25,10 @@ def main():
         print '\nEntry %d information:'%idx
         max_len = len(max(ed.keys(), key=len))
         for k in sorted(ed.keys()):
-            if k.find('image_') < 0 and k.find('mask_') < 0:
+            if k.find('image_') < 0:
                 print k.ljust(max_len),'=', str(ed[k]).strip()
-            elif k.find('image_') >= 0:
+            elif k.find('image_') >= 0 and k.find('/') < 0:
+                print 'image', k
                 images.append(cxi_lib.ungzipImage(ed[k]))
 
     image_num = len(images)

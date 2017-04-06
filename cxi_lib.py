@@ -69,6 +69,19 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
 
     return image_data.reshape(res_y,res_x)
 
+# combine data and mask into 2d image
+def extractPnCCDImageData(full_pnCCD, verbose = 0):
+    data = full_pnCCD['data'][:]
+    mask = full_pnCCD['mask'][:]
+
+    if data.shape != mask.shape:
+        if verbose: sys.stderr.write('Error: Image and mask have different size\n')
+        return None
+
+    data[mask!=0] = -10000
+
+    return data
+
 # Extract intensiry data and panel parameters.
 def readPanelData(data_panel):
     data_dict = {}
@@ -106,6 +119,8 @@ def extractDataFromGroup(group):
 
 
 def prepareDataset(dataset):
+    if type(dataset) == str:
+        return dataset
     if len(dataset.ravel()) == 1:
         return np.asscalar(dataset)
     elif len(dataset.ravel()) < 10:
@@ -148,6 +163,14 @@ def processEntry(entry, verbose = 0):
             
             if image_data is not None:
                 converted_images.append(image_data)
+    else:
+        if verbose: sys.stderr.write('Entry contain data for full pnCCD\n')
+        for i in range(len(data_panels)):
+            if 'mask' in panelsData[i]:
+                image_data = extractPnCCDImageData(panelsData[i],verbose)
+
+                if image_data is not None:
+                    converted_images.append(image_data)
 
     for i in range(len(converted_images)): # Save results of conversion into image_N and mask_N
         entry_data['image_%d'%(i+1)] = gzipImage(converted_images[i])

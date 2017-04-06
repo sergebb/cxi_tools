@@ -41,12 +41,16 @@ def main():
             if ed is None:
                 continue
             for k in ed.keys():
-                if k.find('image_') >= 0:
+                if k.find('image_') >= 0 and k.find('/') < 0:
                     images.append(cxi_lib.ungzipImage(ed[k]))
 
-        for inum,img in enumerate(images):
-            npyname = '%s/%s_%04d'%(dirname,os.path.splitext(os.path.basename(cf))[0],(inum+1))
-            np.save(npyname, img)
+        if len(images) > 1:
+            for inum,img in enumerate(images):
+                npyname = '%s/%s_%04d'%(dirname,os.path.splitext(os.path.basename(cf))[0],(inum+1))
+                np.save(npyname, img)
+        elif len(images) == 1:
+            npyname = '%s/%s'%(dirname,os.path.splitext(os.path.basename(cf))[0])
+            np.save(npyname, images[0])
 
         image_count += len(images)
 
