@@ -73,13 +73,15 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
 # combine data and mask into 2d image
 def extractPnCCDImageData(full_pnCCD, verbose = 0):
     data = full_pnCCD['data'][:]
-    mask = full_pnCCD['mask'][:]
 
-    if data.shape != mask.shape:
-        if verbose: sys.stderr.write('Error: Image and mask have different size\n')
-        return None
+    if 'mask' in full_pnCCD:
+        mask = full_pnCCD['mask'][:]
 
-    data[mask!=0] = -10000
+        if data.shape != mask.shape:
+            if verbose: sys.stderr.write('Error: Image and mask have different size\n')
+            return None
+
+        data[mask!=0] = -10000
 
     return data
 
@@ -117,8 +119,9 @@ class extractPnCCDImageIter:
     def next(self):
         if self.i < self.n:
             data = self.data_array['data'][self.i]
-            mask = self.data_array['mask'][self.i]
-            data[mask<=512] = -10000
+            if 'mask' in self.data_array:
+                mask = self.data_array['mask'][self.i]
+                data[mask<=512] = -10000
             self.i += 1
             return trimImage(data)
         else:
@@ -275,14 +278,13 @@ def processEntry(entry, verbose = 0):
     else:
         if verbose: sys.stderr.write('Entry contain data for full pnCCD\n')
         for i in range(len(data_panels)):
-            if 'mask' in panels_dict[i]:
-                data_shape = panels_dict[i]['data'].shape
-                if len(data_shape) == 2:
-                    image_iter.AddSingleImage(panels_dict[i])
+            data_shape = panels_dict[i]['data'].shape
+            if len(data_shape) == 2:
+                image_iter.AddSingleImage(panels_dict[i])
 
-                elif len(data_shape) == 3:
-                    if verbose: sys.stderr.write('Entry contain data for %d images\n'%data_shape[0])
-                    image_iter.AddImageArray(panels_dict[i])
+            elif len(data_shape) == 3:
+                if verbose: sys.stderr.write('Entry contain data for %d images\n'%data_shape[0])
+                image_iter.AddImageArray(panels_dict[i])
 
     return entry_data,image_iter
 
