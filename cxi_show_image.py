@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm 
 import cxi_lib
 import sys
 import cPickle as pickle
@@ -42,7 +43,7 @@ def main():
         img = images[i]
         img[img<0] = 0
         a = fig.add_subplot(1,image_num,i+1)
-        plot = plt.imshow(img, interpolation='nearest')
+        plot = plt.imshow(img+1, interpolation='nearest',norm=LogNorm(vmin=1,vmax=np.amax(img)))
         a.set_title('Image %d'%(i+1))
         plt.colorbar()
 
