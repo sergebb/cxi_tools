@@ -33,26 +33,19 @@ def main():
 
     image_count = 0
     for idx,cf in enumerate(cxi_files):
-        sys.stderr.write("\r%3d%% (%d/%d), extracted %d images" % (int((idx+1)*100/len(cxi_files)), idx, len(cxi_files), image_count))
-        _, entries_data = cxi_lib.processH5File(cf)
+        _, _, image_iters = cxi_lib.processH5File(cf)
 
-        images = []
-        for idx,ed in enumerate(entries_data):
-            if ed is None:
-                continue
-            for k in ed.keys():
-                if k.find('image_') >= 0 and k.find('/') < 0:
-                    images.append(cxi_lib.ungzipImage(ed[k]))
+        total_len = sum([i.GetLen() for i in image_iters])
 
-        if len(images) > 1:
-            for inum,img in enumerate(images):
-                npyname = '%s/%s_%04d'%(dirname,os.path.splitext(os.path.basename(cf))[0],(inum+1))
+        inum = 0
+        for it in image_iters:
+            for img in it:
+                sys.stderr.write("\r%3d%% (%d/%d), extracted %d images" % (int((idx)*100/len(cxi_files)), idx, len(cxi_files), image_count + inum - 1))
+                npyname = '%s/%s_%04d'%(dirname,os.path.splitext(os.path.basename(cf))[0],(inum + 1))
                 np.save(npyname, img)
-        elif len(images) == 1:
-            npyname = '%s/%s'%(dirname,os.path.splitext(os.path.basename(cf))[0])
-            np.save(npyname, images[0])
+                inum += 1
 
-        image_count += len(images)
+        image_count += inum
 
     sys.stderr.write("\r%3d%% (%d/%d), extracted %d images\n" % (100, len(cxi_files), len(cxi_files), image_count))
 

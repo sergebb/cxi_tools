@@ -53,7 +53,8 @@ def combinePnCCDHalves(top_half, bottom_half, verbose = 0):
     res_x = int(math.ceil((np.amax(x_coord) - np.amin(x_coord))/x_pixel_size)) + 1
     res_y = int(math.ceil((np.amax(y_coord) - np.amin(y_coord))/y_pixel_size)) + 1
 
-    if res_x >= 3000 or res_y >= 3000:
+    if res_x*res_y >= 2e7:
+        if verbose: sys.stderr.write('Skip image: Wrong detector size\n')
         # Wrong detector, skipping
         return None
 
@@ -82,6 +83,93 @@ def extractPnCCDImageData(full_pnCCD, verbose = 0):
 
     return data
 
+class extractPnCCDImageIter:
+    def __init__(self, full_pnCCD_array, verbose = 0):
+        self.data_array = full_pnCCD_array
+        self.shape = self.data_array['data'].shape
+        self.i = 0
+        self.n = self.shape[0]
+
+        if self.data_array['data'].shape != self.data_array['mask'].shape:
+            if verbose: sys.stderr.write('Error: Image and mask have different size\n')
+            self.n = 0
+
+    def __iter__(self):
+        # Iterators are iterables too.
+        # Adding this functions to make them so.
+        return self
+
+    def GetLen(self):
+        return self.n
+
+    def next(self):
+        if self.i < self.n:
+            data = self.data_array['data'][self.i]
+            mask = self.data_array['mask'][self.i]
+            data[mask==0] = -10000
+            self.i += 1
+            return data
+        else:
+            raise StopIteration()
+
+class entryImagesIter:
+    def __init__(self, verbose = 0):
+        self.entry_images_data = []
+        self.next_start_idx = []
+        self.i = 0
+        self.n = 0
+        self.verbose = verbose
+
+    def __iter__(self):
+        # Iterators are iterables too.
+        # Adding this functions to make them so.
+        return self
+
+    def AddPnCCDhalves(self, top_half, bottom_half):
+        self.entry_images_data.append([top_half,bottom_half])
+        self.n += 1
+        self.next_start_idx.append(self.n)
+
+    def AddSingleImage(self, full_pnCCD):
+        self.entry_images_data.append(full_pnCCD)
+        self.n += 1
+        self.next_start_idx.append(self.n)
+
+    def AddImageArray(self, full_pnCCD_array):
+        array_iter = extractPnCCDImageIter(full_pnCCD_array,self.verbose)
+        self.entry_images_data.append(array_iter)
+        self.n += array_iter.GetLen()
+        self.next_start_idx.append(self.n)
+
+    def GetLen(self):
+        return self.n
+
+    def next(self):
+        while self.i < self.n:
+            j = 0
+            while self.i >= self.next_start_idx[j]: j += 1 # moving to proper cell in entry_images_data
+
+            # if self.verbose: sys.stderr.write('Read data from cell %d\n'%j)
+            if isinstance(self.entry_images_data[j], list) and len(self.entry_images_data[j]) == 2:
+                # if self.verbose: sys.stderr.write('PnCCD halves\n')
+                image_data = combinePnCCDHalves(self.entry_images_data[j][0],self.entry_images_data[j][1],self.verbose)
+            elif isinstance(self.entry_images_data[j], extractPnCCDImageIter):
+                # if self.verbose: sys.stderr.write('Image array\n')
+                image_data = self.entry_images_data[j].next()
+            elif isinstance(self.entry_images_data[j], dict):
+                # if self.verbose: sys.stderr.write('Single image\n')
+                image_data = extractPnCCDImageData(self.entry_images_data[j],self.verbose)
+            else:
+                sys.stderr.write('Error: Unknown type in entryImagesIter data\n')
+                print type(self.entry_images_data[j])
+
+            self.i += 1
+            if image_data is not None:
+                return image_data
+            # else continue
+
+        raise StopIteration()
+
 # Extract intensiry data and panel parameters.
 def readPanelData(data_panel):
     data_dict = {}
@@ -98,6 +186,8 @@ def readPanelData(data_panel):
 
             for data_name in link_folder.keys():
                 data_dict[data_name] = link_folder.get(data_name)
+    else:
+        return None
 
     return data_dict
 
@@ -131,11 +221,16 @@ def prepareDataset(dataset):
 # Read data about 1 images in CXI 
 def processEntry(entry, verbose = 0):
     data_panels = []
+    data_image = []
     entry_data = {}
+
+    image_iter = entryImagesIter(verbose)
 
     for group in entry.keys():
         if group.find('data_') >= 0:    # panel data, save for separate processing
             data_panels.append(group)
+        elif group.find('image_') >= 0:    # panel data, save for separate processing
+            data_image.append(group)
         else:                           # text data, just extract and save to dictionary
             if(isinstance(entry[group],h5py.Group)):
                 next_group_dict = extractDataFromGroup(entry[group])
@@ -148,44 +243,49 @@ def processEntry(entry, verbose = 0):
         if verbose: sys.stderr.write('Error: No image data in entry\n')
         return None
 
-    panelsData = []
+    panels_dict = []
 
     for dp in data_panels:
         data_dict = readPanelData(entry[dp])
-        panelsData.append(data_dict)
+        if data_dict != None:
+            panels_dict.append(data_dict)
 
-    converted_images = []
+    if len(panels_dict) == 0:
+        for di in data_image:
+            data_dict = readPanelData(entry[di])
+            if data_dict != None:
+                panels_dict.append(data_dict)
 
-    if len(data_panels)%2 == 0:
+    if len(panels_dict)%2 == 0 and panels_dict[0]['data'].shape == (512,1024):
         if verbose: sys.stderr.write('Entry contain data for pnCCD halves\n')
         for i in range(0,len(data_panels),2):
-            image_data = combinePnCCDHalves(panelsData[i],panelsData[i+1],verbose)
-            
-            if image_data is not None:
-                converted_images.append(image_data)
+            image_iter.AddPnCCDhalves(panels_dict[i],panels_dict[i+1])
     else:
         if verbose: sys.stderr.write('Entry contain data for full pnCCD\n')
         for i in range(len(data_panels)):
-            if 'mask' in panelsData[i]:
-                image_data = extractPnCCDImageData(panelsData[i],verbose)
+            if 'mask' in panels_dict[i]:
+                data_shape = panels_dict[i]['data'].shape
+                if len(data_shape) == 2:
+                    image_iter.AddSingleImage(panels_dict[i])
 
-                if image_data is not None:
-                    converted_images.append(image_data)
+                elif len(data_shape) == 3:
+                    if verbose: sys.stderr.write('Entry contain data for %d images\n'%data_shape[0])
+                    image_iter.AddImageArray(panels_dict[i])
 
-    for i in range(len(converted_images)): # Save results of conversion into image_N and mask_N
-        entry_data['image_%d'%(i+1)] = gzipImage(converted_images[i])
-
-    return entry_data
+    return entry_data,image_iter
 
 
 def processH5File(h5file_path, verbose = 0):
     h5file = h5py.File(h5file_path, "r")
     entries = []
+    image_iters = []
     file_data = {}
 
     for group in h5file.keys(): 
         if group.find('entry_') >= 0:
-            entries.append(processEntry(h5file[group],verbose)) #Process entries
+            entry_data, image_iter = processEntry(h5file[group],verbose)
+            entries.append(entry_data) #Process entries
+            image_iters.append(image_iter)
         else:                                                   #Just save text data
             if(isinstance(h5file[group],h5py.Group)):
                 next_group_dict = extractDataFromGroup(h5file[group])
@@ -202,7 +302,7 @@ def processH5File(h5file_path, verbose = 0):
         else:
             sys.stderr.write('Found %d images\n'%len(entries))
 
-    return file_data, entries
+    return file_data, entries, image_iters
 
 def gzipImage(image_data):
     output = io.BytesIO()

@@ -8,7 +8,7 @@ import numpy as np
 
 def main():
 
-    file_data, entries_data = cxi_lib.processH5File(sys.argv[1],1)
+    file_data, entries_data, image_iters = cxi_lib.processH5File(sys.argv[1],1)
 
     #Output file data
     print 'CXI File information:'
@@ -22,20 +22,23 @@ def main():
         if ed is None:
             continue
 
-        print '\nEntry %d information:'%idx
-        max_len = len(max(ed.keys(), key=len))
-        for k in sorted(ed.keys()):
-            if k.find('image_') < 0:
-                print k.ljust(max_len),'=', str(ed[k]).strip()
-            elif k.find('image_') >= 0 and k.find('/') < 0:
-                print 'image', k
-                images.append(cxi_lib.ungzipImage(ed[k]))
+    total_len = sum([i.GetLen() for i in image_iters])
+    print 'Total len =', total_len
+    image_num = min(total_len, 5)
 
-    image_num = len(images)
+    images = []
+    for it in image_iters:
+        for img in it:
+            images.append(img)
+            if len(images) >= image_num:
+                break
+
+        if len(images) >= image_num:
+            break
 
     fig = plt.figure()
 
-    for i in range(image_num):
+    for i in range(len(images)):
         img = images[i]
         img[img<0] = 0
         a = fig.add_subplot(1,image_num,i+1)
