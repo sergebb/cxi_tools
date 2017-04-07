@@ -83,6 +83,18 @@ def extractPnCCDImageData(full_pnCCD, verbose = 0):
 
     return data
 
+# remove gaps on the sides
+def trimImage(image_data):
+    v_max = np.amax(image_data,axis=1)
+    h_max = np.amax(image_data,axis=0)
+
+    v_left = np.argmax(v_max>=0)
+    v_right = len(v_max) - np.argmax(v_max[::-1]>=0)
+    h_left = np.argmax(h_max>=0)
+    h_right = len(h_max) - np.argmax(h_max[::-1]>=0)
+
+    return image_data[v_left:v_right,h_left:h_right]
+
 class extractPnCCDImageIter:
     def __init__(self, full_pnCCD_array, verbose = 0):
         self.data_array = full_pnCCD_array
@@ -106,9 +118,9 @@ class extractPnCCDImageIter:
         if self.i < self.n:
             data = self.data_array['data'][self.i]
             mask = self.data_array['mask'][self.i]
-            data[mask==0] = -10000
+            data[mask<=512] = -10000
             self.i += 1
-            return data
+            return trimImage(data)
         else:
             raise StopIteration()
 
@@ -158,7 +170,7 @@ class entryImagesIter:
                 image_data = self.entry_images_data[j].next()
             elif isinstance(self.entry_images_data[j], dict):
                 # if self.verbose: sys.stderr.write('Single image\n')
-                image_data = extractPnCCDImageData(self.entry_images_data[j],self.verbose)
+                image_data = trimImage(extractPnCCDImageData(self.entry_images_data[j],self.verbose))
             else:
                 sys.stderr.write('Error: Unknown type in entryImagesIter data\n')
                 print type(self.entry_images_data[j])
