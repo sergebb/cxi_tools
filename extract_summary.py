@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-
+# coding: utf-8
 import sys
 import urllib
 import urlparse
@@ -73,7 +73,7 @@ def main():
     # Print first line
     sys.stdout.write('Id;Link;')
     for j in range(len(fields)):
-        sys.stdout.write('%s;'%(fields[j].replace(':','')))
+        sys.stdout.write('%s;'%(fields[j].replace(':','').encode('utf8','replace')))
     sys.stdout.write('\n')
 
     # Print details
@@ -82,7 +82,7 @@ def main():
         sys.stdout.write('%s;'%urlparse.urljoin(cxidb_base_url, ids_ref[i]))
         for j in range(len(fields)):
             if j < len(details[i]):
-                sys.stdout.write('%s;'%details[i][j])
+                sys.stdout.write('%s;'%details[i][j].encode('utf8','replace'))
 
         sys.stdout.write('\n')
 
