@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 import h5py
 import sys
 from PyQt4 import QtGui, QtCore, Qt
