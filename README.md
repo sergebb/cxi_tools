@@ -14,7 +14,7 @@ cxi_print.py:
 Print cxi structure in terminal. Detect links.
 
 cxi_lib.py:
-Fucntions to process cxi files are here.
+Functions to process cxi files are here.
 
 cxi_show_image.py:
-Extract first image from cxi file and show it via matplotlib.
+Extract first 50 images from cxi file and show them via matplotlib.
