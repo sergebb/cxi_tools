@@ -13,6 +13,8 @@ def main():
 
     #Output file data
     print 'CXI File information:'
+
+    # Print short information fields
     max_len = len(max(file_data.keys(), key=len))
     for k in file_data.keys():
         print k.ljust(max_len),'=', str(file_data[k]).strip()
@@ -25,7 +27,7 @@ def main():
 
     total_len = sum([i.GetLen() for i in image_iters])
     print 'Total len =', total_len
-    image_num = min(total_len, 5)
+    image_num = min(total_len, 50)
 
     images = []
     for it in image_iters:
@@ -37,12 +39,22 @@ def main():
         if len(images) >= image_num:
             break
 
+    # find two close dividers
+    N = np.ceil(np.sqrt(image_num))
+    while image_num%N != 0:
+        N += 1
+        if N == image_num:
+            break
+
+    x_num = N
+    y_num = image_num/N
+
     fig = plt.figure()
 
     for i in range(len(images)):
         img = images[i]
         img[img<0] = 0
-        a = fig.add_subplot(1,image_num,i+1)
+        a = fig.add_subplot(y_num,x_num,i+1)
         plot = plt.imshow(img+1, interpolation='nearest',norm=LogNorm(vmin=1,vmax=np.amax(img)))
         a.set_title('Image %d'%(i+1))
         plt.colorbar()

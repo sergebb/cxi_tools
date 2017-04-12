@@ -295,26 +295,18 @@ def processH5File(h5file_path, verbose = 0):
     image_iters = []
     file_data = {}
 
-    for group in h5file.keys(): 
-        if group.find('entry_') >= 0:
-            entry_data, image_iter = processEntry(h5file[group],verbose)
+    for g in h5file.keys(): 
+        if g.find('entry_') >= 0:
+            entry_data, image_iter = processEntry(h5file[g],verbose)
             entries.append(entry_data) #Process entries
             image_iters.append(image_iter)
         else:                                                   #Just save text data
-            if(isinstance(h5file[group],h5py.Group)):
-                next_group_dict = extractDataFromGroup(h5file[group])
+            if(isinstance(h5file[g],h5py.Group)):
+                next_group_dict = extractDataFromGroup(h5file[g])
                 for k in next_group_dict.keys():
-                    file_data[group+'/'+k] = next_group_dict[k]
+                    file_data[g+'/'+k] = next_group_dict[k]
             else:
-                file_data[group] = prepareDataset(h5file[group][()])
-
-    if verbose: 
-        if len(entries) == 0:
-            sys.stderr.write('No images in file\n')
-        elif len(entries) == 1:
-            sys.stderr.write('Found 1 image\n')
-        else:
-            sys.stderr.write('Found %d images\n'%len(entries))
+                file_data[g] = prepareDataset(h5file[g][()])
 
     return file_data, entries, image_iters
 
