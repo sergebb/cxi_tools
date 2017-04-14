@@ -3,6 +3,7 @@ import os
 import sys
 import numpy as np
 import cxi_lib
+import cxidb25_gap
 from optparse import OptionParser
 
 
@@ -52,26 +53,40 @@ def main():
         for it in image_iters:
             for img in it:
                 sys.stderr.write("\r%3d%% (%d/%d), extracted %d images, skipped %d images" % (int((idx)*100/len(cxi_files)), idx, len(cxi_files), image_count + inum, iskip + 1))
-                if threshold > 0 and np.sum(img) < threshold:
+                clipped_img = np.clip(img,0,np.amax(img))
+                if threshold > 0 and np.sum(clipped_img) < threshold:
                     if bg_reduction:
+                        # background_data.append(img)
+                        # if len(background_data) > 100:
+                        #     background_data.pop(0)
                         if background_data is None:
-                            background_data = img
+                            background_data = clipped_img
                         else:
-                            stack = np.stack([img,background_data])
-                            background_data = np.average(stack, weights=[1,background_counter], axis=0)
+                            try:
+                                stack = np.stack([clipped_img,background_data])
+                                background_data = np.average(stack, weights=[1,background_counter], axis=0)
+                            except ValueError as e:
+                                iskip += 1
+                                continue
+                            # background_data = np.amax(stack, axis=0)
                         background_counter = min(background_counter+1, 100)
                     iskip += 1
                 else:
                     npyname = '%s/%s_%04d'%(dirname,os.path.splitext(os.path.basename(cf))[0],(inum + 1))
                     if bg_reduction and background_data is not None:
-                        img = np.subtract(img,background_data)
-                        img[img<0] = 0
+                        try:
+                            img = np.subtract(clipped_img,background_data)
+                            img[img<0] = 0
+                            img[background_data>100] = -10000
+                        except ValueError as e:
+                            pass
+                    # img = cxidb25_gap.RecoverGap(img,20,-5)
                     np.save(npyname, img)
                     inum += 1
 
         image_count += inum
 
-    sys.stderr.write("\r%3d%% (%d/%d), extracted %d images\n" % (100, len(cxi_files), len(cxi_files), image_count))
+    sys.stderr.write("\r%3d%% (%d/%d), extracted %d images, skipped %d images\n" % (100, len(cxi_files), len(cxi_files), image_count, iskip))
 
 if __name__ == '__main__':
     main()
