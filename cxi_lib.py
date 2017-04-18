@@ -104,7 +104,8 @@ class extractPnCCDImageIter:
         self.i = 0
         self.n = self.shape[0]
 
-        if self.data_array['data'].shape != self.data_array['mask'].shape:
+        if 'data' in full_pnCCD_array and 'mask' in full_pnCCD_array and \
+                self.data_array['data'].shape != self.data_array['mask'].shape:
             if verbose: sys.stderr.write('Error: Image and mask have different size\n')
             self.n = 0
 
@@ -122,6 +123,7 @@ class extractPnCCDImageIter:
             if 'mask' in self.data_array:
                 mask = self.data_array['mask'][self.i]
                 data[mask<=512] = -10000
+                # data[mask>0] = -10000
             self.i += 1
             return trimImage(data)
         else:
@@ -254,9 +256,9 @@ def processEntry(entry, verbose = 0):
             else:
                 entry_data[group] = prepareDataset(entry[group][()])
 
-    if len(data_panels) == 0:
+    if len(data_panels) + len(data_image) == 0:
         if verbose: sys.stderr.write('Error: No image data in entry\n')
-        return None
+        return None, None
 
     panels_dict = []
 
@@ -271,13 +273,13 @@ def processEntry(entry, verbose = 0):
             if data_dict != None:
                 panels_dict.append(data_dict)
 
-    if len(panels_dict)%2 == 0 and panels_dict[0]['data'].shape == (512,1024):
+    if len(panels_dict)%2 == 0 and (panels_dict[0]['data'].shape == (512,1024) or panels_dict[0]['data'].shape == (511,1024)):
         if verbose: sys.stderr.write('Entry contain data for pnCCD halves\n')
         for i in range(0,len(data_panels),2):
             image_iter.AddPnCCDhalves(panels_dict[i],panels_dict[i+1])
     else:
         if verbose: sys.stderr.write('Entry contain data for full pnCCD\n')
-        for i in range(len(data_panels)):
+        for i in range(len(panels_dict)):
             data_shape = panels_dict[i]['data'].shape
             if len(data_shape) == 2:
                 image_iter.AddSingleImage(panels_dict[i])
@@ -319,3 +321,31 @@ def ungzipImage(gzipped_image):
     output = io.BytesIO()
     image_data = np.load(io.BytesIO(zlib.decompress(gzipped_image)))
     return image_data
+
+def compute_noise_level(image_data):
+    size_y, size_x = image_data.shape
+    xqt = size_x//4
+    yqt = size_y//4
+
+    edge_data = np.hstack([image_data[:, :xqt].ravel(), \
+                            image_data[:, 3*xqt:].ravel(), \
+                            image_data[:yqt, xqt:3*xqt].ravel(), \
+                            image_data[3*yqt:, xqt:3*xqt].ravel()])
+
+    used_range = (0, np.ceil(np.amax(edge_data)))
+    bins_num = int(used_range[1] - used_range[0])
+
+    hist, bins_edges = np.histogram(edge_data, bins=bins_num, range=used_range)
+
+    # plt.semilogy( bins_edges[:-1], hist )
+    # plt.plot(bins_edges[:-1], hist)
+
+    mean_noise = int(bins_edges[np.argmax(hist)])
+
+    hist_thresh = np.amax(hist)//100
+
+    cut_noise = mean_noise
+    while hist[cut_noise] > hist_thresh:
+        cut_noise += 1
+
+    return cut_noise
